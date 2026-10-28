@@ -39,7 +39,7 @@ echo "[2] Межсетевой экран"
 check "Межсетевой экран активен" "active" "$(sudo ufw status | awk '/^Status:/{print $2}')"
 
 # TODO 3: проверьте, что политика по умолчанию для входящего трафика равна deny
-UFW_INCOMING=$(sudo ufw status verbose | awk '/^Default:/{print $3}')
+UFW_INCOMING=$(sudo ufw status verbose | awk '/^Default:/{print $2}')
 check "Политика по умолчанию для входящего трафика: deny" "deny" "$UFW_INCOMING"
 
 
@@ -71,6 +71,29 @@ check "Нет файлов с правом записи для всех (o+w)" "
 # г) права ключа равны 600
 KEY_PERMS=$(sudo stat -c '%a' /etc/ssl/private/devops.key)
 check "Права закрытого ключа TLS (600)" "600" "$KEY_PERMS"
+
+# ==========================================
+# РАЗДЕЛ 5: Контейнеризация (из ПР №7)
+# ==========================================
+echo "[5] Контейнеризация"
+
+# а) служба docker активна
+DOCKER_ACTIVE=$(systemctl is-active docker)
+check "Служба Docker активна" "active" "$DOCKER_ACTIVE"
+
+# б) контейнер СУБД в состоянии healthy
+# Имя контейнера может быть app-db-1, как указано в методичке
+DB_HEALTH=$(docker inspect -f '{{.State.Health.Status}}' app-db-1 2>/dev/null || echo "not_found")
+check "Контейнер СУБД (app-db-1) healthy" "healthy" "$DB_HEALTH"
+
+# в) порты 5000 и 5432 не прослушиваются ни на одном адресе, кроме 127.0.0.1
+# Проверяем, есть ли в выводе ss порты 5000 или 5432, НЕ привязанные к 127.0.0.1
+OPEN_PORTS=$(sudo ss -tln | awk '$4 ~ /:(5000|5432)$/ && $4 !~ /^127.0.0.1:/ {print $4}' | wc -l | tr -d ' ')
+check "Порты 5000 и 5432 закрыты для внешних интерфейсов" "0" "$OPEN_PORTS"
+
+# г) права файла .env равны 600
+ENV_PERMS=$(stat -c '%a' ~/app/.env 2>/dev/null || echo "missing")
+check "Права файла .env (600)" "600" "$ENV_PERMS"
 
 
 # ==========================================
